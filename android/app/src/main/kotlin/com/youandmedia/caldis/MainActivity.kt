@@ -1,9 +1,14 @@
 package com.youandmedia.caldis
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.app.ActivityCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,12 +21,15 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.youandmedia.caldis.ai.GeminiService
+import com.youandmedia.caldis.motivation.MotivationEngine
 import com.youandmedia.caldis.navigation.NavGraph
 import com.youandmedia.caldis.navigation.Routes
 import com.youandmedia.caldis.navigation.bottomNavRoutes
 import com.youandmedia.caldis.ui.calendar.CalendarViewModel
 import com.youandmedia.caldis.ui.dashboard.DashboardViewModel
 import com.youandmedia.caldis.ui.theme.CaldisTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 data class BottomNavItem(
     val route: String,
@@ -32,6 +40,11 @@ data class BottomNavItem(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestNotificationPermissionIfNeeded()
+        MotivationEngine.ensureChannel(this)
+        lifecycleScope.launch(Dispatchers.IO) {
+            MotivationEngine.evaluateAndNotify(this@MainActivity)
+        }
 
         // Initialize Gemini with saved API key
         val prefs = getSharedPreferences("caldis_prefs", Context.MODE_PRIVATE)
@@ -92,6 +105,15 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(paddingValues)
                     )
                 }
+            }
+        }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
             }
         }
     }

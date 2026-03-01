@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.youandmedia.caldis.ui.components.GaugeWidget
 import com.youandmedia.caldis.util.*
+import kotlin.math.abs
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
@@ -38,6 +39,7 @@ fun CalendarScreen(
     onAddMeal: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+    val screenHeight = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
 
     Scaffold(
         topBar = {
@@ -53,7 +55,7 @@ fun CalendarScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddMeal,
-                containerColor = GradientTeal,
+                containerColor = MealColor,
                 contentColor = Color.White
             ) {
                 Icon(Icons.Default.AddAPhoto, contentDescription = "Aggiungi pasto da fotocamera")
@@ -110,7 +112,7 @@ fun CalendarScreen(
                 PastMonthCard(state)
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(screenHeight * 0.15f))
         }
     }
 
@@ -410,9 +412,10 @@ fun CalendarGrid(
 
 @Composable
 fun ForecastCard(state: CalendarUiState) {
-    val today = LocalDate.now()
-    val avgDaily = if (today.dayOfMonth > 0) state.totalCaloriesOfMonth / today.dayOfMonth else 0.0
-    val forecastDiff = state.forecastCaloriesOfMonth - (state.dailyCalorieBudget * state.selectedMonth.lengthOfMonth())
+    val monthlyBudget = state.dailyCalorieBudget * state.selectedMonth.lengthOfMonth()
+    val savedCalories = monthlyBudget - state.forecastCaloriesOfMonth
+    val estimatedKgChange = savedCalories / 7700.0
+    val isWeightLoss = estimatedKgChange >= 0
 
     Surface(
         modifier = Modifier
@@ -450,8 +453,8 @@ fun ForecastCard(state: CalendarUiState) {
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    String.format("%.0f kcal", state.forecastCaloriesOfMonth),
-                    color = if (forecastDiff > 0) Color(0xFFFF5252) else Color.White,
+                    if (isWeightLoss) String.format("-%.2f kg", estimatedKgChange) else String.format("+%.2f kg", abs(estimatedKgChange)),
+                    color = if (isWeightLoss) Color.White else Color(0xFFFFCDD2),
                     fontSize = 30.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth(),
@@ -459,7 +462,7 @@ fun ForecastCard(state: CalendarUiState) {
                 )
 
                 Text(
-                    "previste a fine mese",
+                    if (isWeightLoss) "perdita stimata a fine mese" else "aumento stimato a fine mese",
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 12.sp,
                     modifier = Modifier.fillMaxWidth(),
@@ -474,13 +477,13 @@ fun ForecastCard(state: CalendarUiState) {
                 ) {
                     ForecastColumn(
                         icon = Icons.Default.LocalFireDepartment,
-                        label = "Previsione calorie fine mese*",
-                        value = String.format("%.0f kcal", state.forecastCaloriesOfMonth)
+                        label = "Perdita kg fine mese*",
+                        value = if (isWeightLoss) String.format("%.2f kg", estimatedKgChange) else String.format("-%.2f kg", abs(estimatedKgChange))
                     )
                     ForecastColumn(
                         icon = Icons.Default.GraphicEq,
-                        label = "Media calorie al giorno?",
-                        value = String.format("%.0f kcal", avgDaily)
+                        label = "Calorie risparmiate*",
+                        value = String.format("%.0f kcal", savedCalories)
                     )
                     ForecastColumn(
                         icon = Icons.Default.Lightbulb,

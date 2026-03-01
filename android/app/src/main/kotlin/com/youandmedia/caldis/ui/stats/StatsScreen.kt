@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,15 +26,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.youandmedia.caldis.R
 import com.youandmedia.caldis.util.BgColor
 import com.youandmedia.caldis.util.GradientGreen
 import com.youandmedia.caldis.util.GradientTeal
+import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
 
@@ -69,15 +74,30 @@ fun StatsScreen(viewModel: StatsViewModel) {
             SummaryHeaderCard(state)
             Spacer(modifier = Modifier.height(16.dp))
             QuickStatsRow(state)
+            if (state.motivationBadges.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                MotivationBadgesSection(state.motivationBadges)
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            MotivationToolkitSection(
+                profile = state.motivationProfile,
+                mission = state.dailyMission,
+                challenges = state.motivationChallenges
+            )
             Spacer(modifier = Modifier.height(20.dp))
 
             if (state.weeklyTrends.isNotEmpty()) {
+                val weeklyTrophyIndex = previousWeekIndexForMonth(
+                    selectedMonth = state.selectedMonth,
+                    trendCount = state.weeklyTrends.size
+                )
                 Text("Settimanale", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 20.dp), color = Color(0xFF2C3E50))
                 Spacer(modifier = Modifier.height(12.dp))
                 TrendChart(
                     trends = state.weeklyTrends,
                     thresholdValue = state.dailyBudget * 7.0,
+                    trophyIndex = weeklyTrophyIndex,
                     modifier = Modifier.fillMaxWidth().height(220.dp).padding(horizontal = 16.dp)
                 )
 
@@ -107,12 +127,14 @@ fun StatsScreen(viewModel: StatsViewModel) {
             }
 
             if (state.dailyTrendsLast7.isNotEmpty()) {
+                val dailyTrophyIndex = (state.dailyTrendsLast7.lastIndex - 1).takeIf { it >= 0 }
                 Text("Giornaliero", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 20.dp), color = Color(0xFF2C3E50))
                 Spacer(modifier = Modifier.height(12.dp))
                 TrendChart(
                     trends = state.dailyTrendsLast7,
                     thresholdValue = state.dailyBudget,
+                    trophyIndex = dailyTrophyIndex,
                     modifier = Modifier.fillMaxWidth().height(220.dp).padding(horizontal = 16.dp)
                 )
                 Spacer(modifier = Modifier.height(20.dp))
@@ -147,6 +169,7 @@ fun StatsScreen(viewModel: StatsViewModel) {
 fun TrendChart(
     trends: List<PeriodTrend>,
     thresholdValue: Double,
+    trophyIndex: Int? = null,
     modifier: Modifier = Modifier
 ) {
     val animProgress = remember { Animatable(0f) }
@@ -201,23 +224,50 @@ fun TrendChart(
                     size = Size(barWidth, burnHeight), cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()))
 
                 // Motivation marker:
-                // place smiley above threshold line only when there is real intake and calories are under target.
-                if (thresholdValue > 0 && trend.totalCalories > 0.0 && trend.totalCalories < thresholdValue) {
+                // place trophy only for the requested (previous) period and only when calories are under target.
+                if (trophyIndex == index && thresholdValue > 0 && trend.totalCalories > 0.0 && trend.totalCalories < thresholdValue) {
                     val topSpace = thresholdY
-                    if (topSpace > 18.dp.toPx()) {
-                        val faceRadius = minOf(topSpace * 0.18f, barWidth * 0.45f).coerceAtLeast(5.dp.toPx())
-                        val faceCenter = Offset(centerX - barWidth / 2 - gap / 2, thresholdY * 0.5f)
-                        drawCircle(color = Color(0xFFFFD54F), radius = faceRadius, center = faceCenter)
-                        drawCircle(color = Color(0xFF5D4037), radius = faceRadius * 0.12f, center = faceCenter + Offset(-faceRadius * 0.28f, -faceRadius * 0.18f))
-                        drawCircle(color = Color(0xFF5D4037), radius = faceRadius * 0.12f, center = faceCenter + Offset(faceRadius * 0.28f, -faceRadius * 0.18f))
-                        drawArc(
-                            color = Color(0xFF5D4037),
-                            startAngle = 20f,
-                            sweepAngle = 140f,
-                            useCenter = false,
-                            topLeft = Offset(faceCenter.x - faceRadius * 0.42f, faceCenter.y - faceRadius * 0.18f),
-                            size = Size(faceRadius * 0.84f, faceRadius * 0.84f),
-                            style = Stroke(width = 1.3.dp.toPx())
+                    if (topSpace > 20.dp.toPx()) {
+                        val cupHeight = minOf(topSpace * 0.30f, barWidth * 1.35f).coerceAtLeast(10.dp.toPx())
+                        val cupWidth = cupHeight * 0.90f
+                        val cupCenter = Offset(centerX - barWidth / 2 - gap / 2, thresholdY * 0.45f)
+                        val cupTopLeft = Offset(cupCenter.x - cupWidth / 2, cupCenter.y - cupHeight / 2)
+                        val bowlHeight = cupHeight * 0.52f
+                        val stemWidth = cupWidth * 0.22f
+                        val stemHeight = cupHeight * 0.20f
+                        val baseWidth = cupWidth * 0.48f
+                        val baseHeight = cupHeight * 0.12f
+                        val gold = Color(0xFFFFC107)
+                        val goldDark = Color(0xFFFF8F00)
+
+                        drawRoundRect(
+                            color = gold,
+                            topLeft = cupTopLeft,
+                            size = Size(cupWidth, bowlHeight),
+                            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                        )
+                        drawRect(
+                            color = gold,
+                            topLeft = Offset(cupCenter.x - stemWidth / 2, cupTopLeft.y + bowlHeight),
+                            size = Size(stemWidth, stemHeight)
+                        )
+                        drawRoundRect(
+                            color = goldDark,
+                            topLeft = Offset(cupCenter.x - baseWidth / 2, cupTopLeft.y + bowlHeight + stemHeight),
+                            size = Size(baseWidth, baseHeight),
+                            cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+                        )
+                        drawCircle(
+                            color = gold,
+                            radius = cupWidth * 0.18f,
+                            center = Offset(cupTopLeft.x - cupWidth * 0.10f, cupTopLeft.y + bowlHeight * 0.42f),
+                            style = Stroke(width = 2.dp.toPx())
+                        )
+                        drawCircle(
+                            color = gold,
+                            radius = cupWidth * 0.18f,
+                            center = Offset(cupTopLeft.x + cupWidth + cupWidth * 0.10f, cupTopLeft.y + bowlHeight * 0.42f),
+                            style = Stroke(width = 2.dp.toPx())
                         )
                     }
                 }
@@ -242,6 +292,13 @@ fun TrendChart(
             }
         }
     }
+}
+
+private fun previousWeekIndexForMonth(selectedMonth: YearMonth, trendCount: Int): Int? {
+    if (selectedMonth != YearMonth.now()) return null
+    val currentWeekIndex = (LocalDate.now().dayOfMonth - 1) / 7
+    val previousWeekIndex = currentWeekIndex - 1
+    return previousWeekIndex.takeIf { it >= 0 && it < trendCount }
 }
 
 @Composable
@@ -416,4 +473,294 @@ fun EmptyState() {
         Text("Le statistiche appariranno quando\naggiungerai dei pasti", fontSize = 13.sp, color = Color(0xFFBDC3C7),
             textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
     }
+}
+
+@Composable
+private fun MotivationBadgesSection(badges: List<MotivationBadge>) {
+    Text(
+        "Badge Motivazionali",
+        fontSize = 18.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(horizontal = 20.dp),
+        color = Color(0xFF2C3E50)
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+
+    badges.forEach { badge ->
+        MotivationBadgeCard(badge = badge)
+        Spacer(modifier = Modifier.height(10.dp))
+    }
+}
+
+@Composable
+private fun MotivationBadgeCard(badge: MotivationBadge) {
+    val colors = when (badge.type) {
+        MotivationBadgeType.WEEK -> listOf(Color(0xFF00BFA5), Color(0xFF00ACC1))
+        MotivationBadgeType.MONTH -> listOf(Color(0xFFFFA000), Color(0xFFFF6F00))
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(18.dp),
+        shadowElevation = 3.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .background(Brush.linearGradient(colors))
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.22f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = medalResForBadge(badge)),
+                        contentDescription = null,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        badge.title,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        badge.subtitle,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 12.sp
+                    )
+                }
+                Surface(
+                    color = Color.White.copy(alpha = 0.16f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        "TOP",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MotivationToolkitSection(
+    profile: MotivationProfile,
+    mission: DailyMission?,
+    challenges: List<MotivationChallenge>
+) {
+    Text(
+        "Motivation Lab",
+        fontSize = 18.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(horizontal = 20.dp),
+        color = Color(0xFF2C3E50)
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    MotivationProfileCard(profile)
+    Spacer(modifier = Modifier.height(10.dp))
+    mission?.let {
+        DailyMissionCard(it)
+        Spacer(modifier = Modifier.height(10.dp))
+    }
+    challenges.forEachIndexed { index, challenge ->
+        MotivationChallengeCard(challenge = challenge, index = index)
+        Spacer(modifier = Modifier.height(10.dp))
+    }
+}
+
+@Composable
+private fun MotivationProfileCard(profile: MotivationProfile) {
+    val progress = (profile.xp.toFloat() / profile.nextLevelXp.toFloat()).coerceIn(0f, 1f)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(18.dp),
+        shadowElevation = 3.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .background(Brush.linearGradient(listOf(Color(0xFF5E35B1), Color(0xFF3949AB))))
+                .padding(16.dp)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Livello ${profile.level}", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text("${profile.xp} XP", color = Color.White.copy(alpha = 0.9f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(99.dp)),
+                    color = Color(0xFFFFD54F),
+                    trackColor = Color.White.copy(alpha = 0.22f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Prossimo livello a ${profile.nextLevelXp} XP",
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DailyMissionCard(mission: DailyMission) {
+    val colors = if (mission.isCompleted) {
+        listOf(Color(0xFF2E7D32), Color(0xFF1B5E20))
+    } else {
+        listOf(Color(0xFFEF6C00), Color(0xFFE65100))
+    }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(18.dp),
+        shadowElevation = 2.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .background(Brush.linearGradient(colors))
+                .padding(16.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Flag,
+                        contentDescription = null,
+                        tint = if (mission.isCompleted) Color(0xFFFFEB3B) else Color(0xFFFFCC80),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(mission.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(mission.subtitle, color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MotivationChallengeCard(challenge: MotivationChallenge, index: Int) {
+    val colors = if (challenge.isCompleted) {
+        listOf(Color(0xFF00897B), Color(0xFF00695C))
+    } else {
+        listOf(Color(0xFF546E7A), Color(0xFF37474F))
+    }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(18.dp),
+        shadowElevation = 2.dp
+    ) {
+        Box(
+            modifier = Modifier
+                .background(Brush.linearGradient(colors))
+                .padding(16.dp)
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = shieldResForChallenge(index)),
+                            contentDescription = null,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        challenge.title,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (challenge.isCompleted) {
+                        Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = Color(0xFFFFD54F), modifier = Modifier.size(20.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(challenge.subtitle, color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
+                Spacer(modifier = Modifier.height(10.dp))
+                LinearProgressIndicator(
+                    progress = { challenge.progress },
+                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(99.dp)),
+                    color = if (challenge.isCompleted) Color(0xFFFFD54F) else Color(0xFF80DEEA),
+                    trackColor = Color.White.copy(alpha = 0.22f)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(challenge.progressLabel, color = Color.White.copy(alpha = 0.92f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+private fun medalResForBadge(badge: MotivationBadge): Int {
+    val variants = listOf(
+        R.drawable.badge_medal,
+        R.drawable.badge_medal2,
+        R.drawable.badge_medal3,
+        R.drawable.badge_medal4
+    )
+    val base = when (badge.type) {
+        MotivationBadgeType.WEEK -> 0
+        MotivationBadgeType.MONTH -> 2
+    }
+    val offset = badge.day.dayOfMonth % variants.size
+    return variants[(base + offset) % variants.size]
+}
+
+private fun shieldResForChallenge(index: Int): Int {
+    val variants = listOf(
+        R.drawable.challenge_shield,
+        R.drawable.challenge_shield2,
+        R.drawable.challenge_shield3,
+        R.drawable.challenge_shield4
+    )
+    return variants[index % variants.size]
 }

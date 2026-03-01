@@ -28,11 +28,46 @@ android {
             localProperties.load(localPropertiesFile.inputStream())
         }
         buildConfigField("String", "GEMINI_API_KEY", "\"${localProperties.getProperty("GEMINI_API_KEY", "")}\"")
+        // Limit packaged locales to reduce resource size.
+        resourceConfigurations += setOf("it", "en")
+    }
+
+    flavorDimensions += "tier"
+    productFlavors {
+        create("dev") {
+            dimension = "tier"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            buildConfigField("String", "BUILD_TIER", "\"dev\"")
+        }
+        create("prod") {
+            dimension = "tier"
+            buildConfigField("String", "BUILD_TIER", "\"prod\"")
+        }
     }
 
     buildTypes {
-        release {
+        debug {
             isMinifyEnabled = false
+            isShrinkResources = false
+        }
+        create("optimized") {
+            initWith(getByName("release"))
+            matchingFallbacks += listOf("release")
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            applicationIdSuffix = ".opt"
+            versionNameSuffix = "-opt"
+            signingConfig = signingConfigs.getByName("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -60,7 +95,32 @@ android {
 
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += setOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "META-INF/LICENSE*",
+                "META-INF/NOTICE*"
+            )
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a", "x86_64")
+            isUniversalApk = false
+        }
+    }
+
+    bundle {
+        abi {
+            enableSplit = true
+        }
+        language {
+            enableSplit = true
+        }
+        density {
+            enableSplit = true
         }
     }
 }
