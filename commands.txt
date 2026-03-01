@@ -1,0 +1,8 @@
+BUILD
+
+.\gradlew.bat :app:kspDebugKotlin --stacktrace --info --console=plain
+
+
+INSTALL
+
+adb -s ZY22L5VDB9 install -r "C:\Users\gae\Documents\sviluppo\caldis\android\app\build\outputs\apk\debug\app-debug.apk"
